@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mohit — Shared-by-file (Export/Import) Demo</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;background:#071427;color:#e6eef8;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:18px}
+  .wrap{width:100%;max-width:720px;background:#07162a;border-radius:10px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+  h1{margin:0 0 8px;font-size:20px}
+  label{display:block;font-size:13px;color:#9fb0c6;margin-top:8px}
+  input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:rgba(255,255,255,0.02);color:inherit;margin-top:6px;box-sizing:border-box}
+  .row{display:flex;gap:8px;margin-top:12px}
+  button{padding:10px;border-radius:8px;border:none;background:#06b6d4;color:#042027;font-weight:700;cursor:pointer}
+  .ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:#94a3b8}
+  .note{font-size:13px;color:#94a3b8;margin-top:10px}
+  .list{margin-top:14px;background:#041629;padding:10px;border-radius:8px;max-height:320px;overflow:auto}
+  .item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .meta{font-size:14px}
+  .small{font-size:12px;color:#9fb0c6}
+  .del{background:#ff6b6b;border:none;color:white;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .hide{background:#888;border:none;color:white;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Mohit — Shared-by-file (Export/Import)</h1>
+    <p class="note">
+      तरीका: सबमिट होने पर एंट्री आपकी डिवाइस में सेव होगी। अगर आप चाहते हैं कि वही एंट्री किसी भी डिवाइस में पर्मानेंट रहे, तो "Export Master" करके एक फाइल बनाएं और उसे जहां रखना चाहें वहां रखें — दूसरे डिवाइस पर वही फाइल Import करने से वे सभी एंट्री देख पाएँगे।<br>
+      <strong>Delete (Hide locally)</strong> बटन सिर्फ़ इस डिवाइस की दिखत बदलता है — फ़ाइल की मास्टर कॉपी पर असर नहीं होगा जब तक आप मास्टर फाइल नहीं अपडेट करेंगे।
+    </p>
+
+    <label for="name">Naam / Name</label>
+    <input id="name" placeholder="आपका नाम">
+
+    <label for="number">Number / नंबर</label>
+    <input id="number" placeholder="आपका नंबर">
+
+    <label for="key">Key / जादू की</label>
+    <input id="key" placeholder="Key or password (demo)">
+
+    <div class="row">
+      <button id="submit">Submit</button>
+      <button id="export" class="ghost">Export Master (Download JSON)</button>
+      <label class="ghost" style="padding:10px;border-radius:8px;cursor:pointer"><input id="importFile" type="file" accept=".json"> Import Master</label>
+      <button id="clearLocal" class="ghost">Clear Local</button>
+    </div>
+
+    <div class="note">Important: To keep one single authoritative file, always use the same exported JSON file as the "master" that you share or host. Importing merges entries into the current device (no automatic overwrite).</div>
+
+    <div class="list" id="list">
+      <!-- entries go here -->
+    </div>
+  </div>
+
+<script>
+const KEY = 'mohit_master_local_v1';
+const el = id => document.getElementById(id);
+
+function load(){ return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+function save(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
+
+function render(){
+  const arr = load();
+  const list = el('list');
+  if(arr.length===0){ list.innerHTML = '<div class="small">No entries yet.</div>'; return; }
+  list.innerHTML = '';
+  arr.forEach((r,i)=>{
+    const div = document.createElement('div'); div.className='item';
+    const meta = document.createElement('div'); meta.className='meta';
+    meta.innerHTML = `<strong>${escapeHtml(r.name)}</strong><div class="small">${escapeHtml(r.number)} • ${escapeHtml(r.key)}</div><div class="small">${new Date(r.time).toLocaleString()}</div>`;
+    const actions = document.createElement('div');
+    const hideBtn = document.createElement('button'); hideBtn.className='hide'; hideBtn.textContent='Hide (local)';
+    hideBtn.addEventListener('click', ()=>{
+      // remove only from local storage (hide)
+      let arr2 = load();
+      arr2 = arr2.filter((_,idx)=> idx !== i);
+      save(arr2);
+      render();
+    });
+    actions.appendChild(hideBtn);
+    div.appendChild(meta);
+    div.appendChild(actions);
+    list.appendChild(div);
+  });
+}
+
+// escape
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// submit
+el('submit').addEventListener('click', ()=>{
+  const name = el('name').value.trim() || '(empty)';
+  const number = el('number').value.trim() || '(empty)';
+  const key = el('key').value.trim() || '(empty)';
+  const entry = {name, number, key, time: new Date().toISOString()};
+  const arr = load();
+  // avoid duplicates: if exact same exists, still push to top
+  arr.unshift(entry);
+  save(arr);
+  el('name').value=''; el('number').value=''; el('key').value='';
+  render();
+  alert('Submitted and saved locally. To make it permanent across devices, Export Master and share that JSON file as the authoritative copy.');
+});
+
+// export master
+el('export').addEventListener('click', ()=>{
+  const arr = load();
+  const blob = new Blob([JSON.stringify(arr, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'mohit_master.json'; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },1500);
+});
+
+// import master (merge)
+el('importFile').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const imported = JSON.parse(e.target.result);
+      if(!Array.isArray(imported)) throw new Error('Invalid file format');
+      // merge: keep unique by timestamp+name+number+key to avoid exact dupes
+      const current = load();
+      const combined = [...imported, ...current];
+      // dedupe by JSON string
+      const seen = new Set();
+      const merged = [];
+      for(const item of combined){
+        const id = JSON.stringify([item.name, item.number, item.key, item.time]);
+        if(seen.has(id)) continue;
+        seen.add(id);
+        merged.push(item);
+      }
+      save(merged);
+      render();
+      alert('Imported master file and merged entries (no overwrite).');
+    }catch(err){
+      alert('Import failed: '+err.message);
+    }
+  };
+  reader.readAsText(f);
+  // reset input
+  ev.target.value='';
+});
+
+el('clearLocal').addEventListener('click', ()=>{
+  if(!confirm('Clear all local entries? This will remove entries only from this device.')) return;
+  save([]);
+  render();
+});
+
+// initial render
+render();
+</script>
+</body>
+</html>
